@@ -4,7 +4,7 @@
 #############################################################################
 #
 # helper to mqtt for smarthome
-#
+# /usr/local/opt/python/bin/python3.9 -m pip install simple-pid
 #############################################################################
 #
 
@@ -43,28 +43,28 @@ def on_message(client, userdata, msg):
     sensor_co2 = json_data.get('co2')
     print("CO2 sensor message received, co2: " + str(sensor_co2) + " ppm")
     ahu_value = pid(sensor_co2)
-    print("PID value: " + str(ahu_value) + " %")
+    print("New PID value: " + str(ahu_value) + " %")
     client.publish("mqtt_co2_pid/value", ahu_value, qos=0, retain=False)
     client.publish("ahu/power/set", int(ahu_value), qos=0, retain=False)
 
   if msg.topic == "mqtt_co2_pid/kp":
     pid.Kp = float(msg.payload)
-    print("PID Kp value: " + str(msg.payload))
+    print("PID Kp value: " + str(pid.Kp))
   if msg.topic == "mqtt_co2_pid/ki":
     pid.Ki = float(msg.payload)
-    print("PID Ki value: " + str(msg.payload))
+    print("PID Ki value: " + str(pid.Ki))
   if msg.topic == "mqtt_co2_pid/kd":
     pid.Kd = float(msg.payload)
-    print("PID Kd value: " + str(msg.payload))
+    print("PID Kd value: " + str(pid.Kd))
   if msg.topic == "mqtt_co2_pid/target_value":
     pid.setpoint = float(msg.payload)
-    print("PID setpoint value: " + str(msg.payload))
+    print("PID setpoint value: " + str(pid.setpoint))
   if msg.topic == "mqtt_co2_pid/power":
     if msg.payload == "true":
       pid.auto_mode = True
     if msg.payload == "false":
       pid.auto_mode = False
-    print("PID power value: " + str(msg.payload))
+    print("PID power value: " + str(pid.auto_mode))
 
 
 
@@ -93,7 +93,7 @@ def main():
     time.sleep(period)
     uptime = counter * period
 
-    print("\n\nPublish uptime: " + str(uptime) + "s")
+    print("\n\nPublish uptime: " + str(uptime) + "s. ki:" + str(pid.Ki) + " kp:" + str(pid.Kp) + " kd:" + str(pid.Kd) + " setpoint:" + str(pid.setpoint) + " power:" + str(pid.auto_mode) + " value:" + str(ahu_value))
     client.publish("mqtt_co2_pid/status/uptime", str(uptime), qos=0, retain=False)
 
     #print("Run calibration procedure. \n\tRoom temp: {} \n\tValve temp: {} \n\tValve old calibration: {} \n\tNew calibration diff: {} \n\tFull calibration value: {}".format(str(sensor_temperature), str(valve_sensor_temperature), str(valve_sensor_calibration), str(new_calibration_diff), str(new_full_calibration_value)))
