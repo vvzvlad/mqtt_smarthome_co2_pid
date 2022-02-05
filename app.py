@@ -9,6 +9,8 @@
 #
 
 import paho.mqtt.client as mqtt
+from simple_pid import PID
+
 import time
 
 import os
@@ -16,69 +18,86 @@ import json
 import sys
 import random
 
-period = 60
-
-sensor_temperature = 0
-valve_sensor_temperature = 0
-valve_sensor_calibration = 0
+sensor_co2 = 0
+period = 30
+ahu_value = 0
 
 def on_connect(client, userdata, flags, rc):
   print("Connected with result code " + str(rc))
-  client.subscribe("zigbee/sensor_082a")
-  client.subscribe("zigbee/thermostat_0403")
-  client.subscribe("mqtt_thermo_helper/period/set")
-  client.publish("mqtt_thermo_helper/status", payload="mqtt thermp helper daemon started", qos=0, retain=False)
-  client.publish("zigbee/thermostat_0403/set", str("{\"eco_temperature\": 25}"), qos=0, retain=False)
+  client.subscribe("zigbee/sensor_CO2_a0d8")
+  client.subscribe("mqtt_co2_pid/kp")
+  client.subscribe("mqtt_co2_pid/ki")
+  client.subscribe("mqtt_co2_pid/kd")
+  client.subscribe("mqtt_co2_pid/target_value")
+  client.subscribe("mqtt_co2_pid/power")
+  client.publish("mqtt_co2_pid/status", payload="daemon started", qos=0, retain=False)
+
 
 
 def on_message(client, userdata, msg):
   #print("Received MQTT message:" + msg.topic + ": " + str(msg.payload))
-  global sensor_temperature, valve_sensor_temperature, valve_sensor_calibration
+  global sensor_co2, pid, ahu_value
 
-  if msg.topic == "mqtt_thermo_helper/period/set":
-    period = atof(msg.payload)
-    print("New period: " + str(period))
+  if msg.topic == "zigbee/sensor_CO2_a0d8":
+    json_data = json.loads(msg.payload)
+    sensor_co2 = json_data.get('co2')
+    print("CO2 sensor message received, co2: " + str(sensor_co2) + " ppm")
+    ahu_value = pid(sensor_co2)
+    print("PID value: " + str(ahu_value) + " %")
+    client.publish("mqtt_co2_pid/value", ahu_value, qos=0, retain=False)
+    client.publish("ahu/power/set", int(ahu_value), qos=0, retain=False)
 
-  if msg.topic == "zigbee/sensor_082a":
-    json_data = json.loads(msg.payload)
-    sensor_temperature = json_data.get('temperature')
-    print("Room sensor message received, temperature: " + str(sensor_temperature) + "°C")
-  if msg.topic == "zigbee/thermostat_0403":
-    json_data = json.loads(msg.payload)
-    valve_sensor_temperature = json_data.get('local_temperature')
-    valve_sensor_calibration = json_data.get('local_temperature_calibration')
-    print("Thermostat message received, thermostat local temperature: " + str(valve_sensor_temperature) + "°C (with calibration), calibration: " + str(valve_sensor_calibration) + "°C" + ", without calibration: " + str(valve_sensor_temperature-valve_sensor_calibration) + "°C")
-    client.publish("zigbee/thermostat_0403/calculated", str("{\"temperature_raw\": " + str(valve_sensor_temperature-valve_sensor_calibration) + "}"), qos=0, retain=False)
+  if msg.topic == "mqtt_co2_pid/kp":
+    pid.Kp = float(msg.payload)
+    print("PID Kp value: " + str(msg.payload))
+  if msg.topic == "mqtt_co2_pid/ki":
+    pid.Ki = float(msg.payload)
+    print("PID Ki value: " + str(msg.payload))
+  if msg.topic == "mqtt_co2_pid/kd":
+    pid.Kd = float(msg.payload)
+    print("PID Kd value: " + str(msg.payload))
+  if msg.topic == "mqtt_co2_pid/target_value":
+    pid.setpoint = float(msg.payload)
+    print("PID setpoint value: " + str(msg.payload))
+  if msg.topic == "mqtt_co2_pid/power":
+    if msg.payload == "true":
+      pid.auto_mode = True
+    if msg.payload == "false":
+      pid.auto_mode = False
+    print("PID power value: " + str(msg.payload))
+
 
 
 def main():
-  global period
+  global period, pid
+
+  pid = PID(-0.10, -0.1, -0.1, setpoint=500)
+  pid.sample_time = 60*2
+  pid.output_limits = (10, 100)
+
   counter = 0
+
   client = mqtt.Client()
   client.on_connect = on_connect
   client.on_message = on_message
   client.connect("192.168.88.111", 1883, 60)
   time.sleep(5)
   client.loop_start()
-  print("MQTT thermo helper daemon started")
-  client.publish("mqtt_thermo_helper/status/uptime", str(0), qos=0, retain=False)
+  print("MQTT co2 helper daemon started")
+  client.publish("mqtt_co2_pid/status/uptime", str(0), qos=0, retain=False)
+
+
 
   while True:
     counter = counter + 1
     time.sleep(period)
-    print("\n\nCycle start")
     uptime = counter * period
 
-    print("Publish uptime: " + str(uptime) + "s")
-    client.publish("mqtt_thermo_helper/status/uptime", str(uptime), qos=0, retain=False)
+    print("\n\nPublish uptime: " + str(uptime) + "s")
+    client.publish("mqtt_co2_pid/status/uptime", str(uptime), qos=0, retain=False)
 
-    if sensor_temperature != 0 and valve_sensor_temperature != 0:
-      new_calibration_diff = round(sensor_temperature-valve_sensor_temperature, 1)
-      new_full_calibration_value = new_calibration_diff + valve_sensor_calibration
+    #print("Run calibration procedure. \n\tRoom temp: {} \n\tValve temp: {} \n\tValve old calibration: {} \n\tNew calibration diff: {} \n\tFull calibration value: {}".format(str(sensor_temperature), str(valve_sensor_temperature), str(valve_sensor_calibration), str(new_calibration_diff), str(new_full_calibration_value)))
 
-      print("Run calibration procedure. \n\tRoom temp: {} \n\tValve temp: {} \n\tValve old calibration: {} \n\tNew calibration diff: {} \n\tFull calibration value: {}".format(str(sensor_temperature), str(valve_sensor_temperature), str(valve_sensor_calibration), str(new_calibration_diff), str(new_full_calibration_value)))
-
-      client.publish("zigbee/thermostat_0403/set", str("{\"local_temperature_calibration\": " + str(new_full_calibration_value) + "}"), qos=0, retain=False)
 
   client.loop_stop()
 
