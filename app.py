@@ -25,10 +25,10 @@ ahu_value = 0
 def on_connect(client, userdata, flags, rc):
   print("Connected with result code " + str(rc))
   client.subscribe("zigbee/sensor_CO2_a0d8")
-  client.subscribe("mqtt_co2_pid/kp")
-  client.subscribe("mqtt_co2_pid/ki")
-  client.subscribe("mqtt_co2_pid/kd")
-  client.subscribe("mqtt_co2_pid/target_value")
+  client.subscribe("mqtt_co2_pid/kp/set")
+  client.subscribe("mqtt_co2_pid/ki/set")
+  client.subscribe("mqtt_co2_pid/kd/set")
+  client.subscribe("mqtt_co2_pid/target_value/set")
   client.subscribe("mqtt_co2_pid/power")
   client.publish("mqtt_co2_pid/status", payload="daemon started", qos=0, retain=False)
 
@@ -47,16 +47,16 @@ def on_message(client, userdata, msg):
     client.publish("mqtt_co2_pid/value", ahu_value, qos=0, retain=False)
     client.publish("ahu/power/set", int(ahu_value), qos=0, retain=False)
 
-  if msg.topic == "mqtt_co2_pid/kp":
+  if msg.topic == "mqtt_co2_pid/kp/set":
     pid.Kp = float(msg.payload)
     print("PID Kp value: " + str(pid.Kp))
-  if msg.topic == "mqtt_co2_pid/ki":
+  if msg.topic == "mqtt_co2_pid/ki/set":
     pid.Ki = float(msg.payload)
     print("PID Ki value: " + str(pid.Ki))
-  if msg.topic == "mqtt_co2_pid/kd":
+  if msg.topic == "mqtt_co2_pid/kd/set":
     pid.Kd = float(msg.payload)
     print("PID Kd value: " + str(pid.Kd))
-  if msg.topic == "mqtt_co2_pid/target_value":
+  if msg.topic == "mqtt_co2_pid/target_value/set":
     pid.setpoint = float(msg.payload)
     print("PID setpoint value: " + str(pid.setpoint))
   if msg.topic == "mqtt_co2_pid/power":
@@ -71,7 +71,7 @@ def on_message(client, userdata, msg):
 def main():
   global period, pid
 
-  pid = PID(-0.10, -0.1, -0.1, setpoint=500)
+  pid = PID(-0.30, -0.0, -0.0, setpoint=600)
   pid.sample_time = 60*2
   pid.output_limits = (10, 100)
 
@@ -93,11 +93,13 @@ def main():
     time.sleep(period)
     uptime = counter * period
 
-    print("\n\nPublish uptime: " + str(uptime) + "s. ki:" + str(pid.Ki) + " kp:" + str(pid.Kp) + " kd:" + str(pid.Kd) + " setpoint:" + str(pid.setpoint) + " power:" + str(pid.auto_mode) + " value:" + str(ahu_value))
+    print("\n\nPublish uptime: " + str(uptime) + "s. ki:" + str(pid.Ki) + ", kp:" + str(pid.Kp) + ", kd:" + str(pid.Kd) + ", setpoint:" + str(pid.setpoint) + ", power:" + str(pid.auto_mode) + ", value:" + str(ahu_value))
     client.publish("mqtt_co2_pid/status/uptime", str(uptime), qos=0, retain=False)
 
-    #print("Run calibration procedure. \n\tRoom temp: {} \n\tValve temp: {} \n\tValve old calibration: {} \n\tNew calibration diff: {} \n\tFull calibration value: {}".format(str(sensor_temperature), str(valve_sensor_temperature), str(valve_sensor_calibration), str(new_calibration_diff), str(new_full_calibration_value)))
-
+    client.publish("mqtt_co2_pid/kp", str(pid.Kp), qos=0, retain=False)
+    client.publish("mqtt_co2_pid/ki", str(pid.Ki), qos=0, retain=False)
+    client.publish("mqtt_co2_pid/kd", str(pid.Kd), qos=0, retain=False)
+    client.publish("mqtt_co2_pid/target_value", str(pid.setpoint), qos=0, retain=False)
 
   client.loop_stop()
 
