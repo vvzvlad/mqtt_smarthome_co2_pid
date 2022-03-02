@@ -31,6 +31,7 @@ def on_connect(client, userdata, flags, rc):
   client.subscribe("mqtt_co2_pid/target_value/set")
   client.subscribe("mqtt_co2_pid/power")
   client.publish("mqtt_co2_pid/status", payload="daemon started", qos=0, retain=False)
+  client.publish("ahu/power/set", 10, qos=0, retain=False)
 
 
 
@@ -50,15 +51,19 @@ def on_message(client, userdata, msg):
   if msg.topic == "mqtt_co2_pid/kp/set":
     pid.Kp = float(msg.payload)
     print("PID Kp value: " + str(pid.Kp))
+    client.publish("mqtt_co2_pid/kp", str(pid.Kp), qos=0, retain=False)
   if msg.topic == "mqtt_co2_pid/ki/set":
     pid.Ki = float(msg.payload)
     print("PID Ki value: " + str(pid.Ki))
+    client.publish("mqtt_co2_pid/ki", str(pid.Ki), qos=0, retain=False)
   if msg.topic == "mqtt_co2_pid/kd/set":
     pid.Kd = float(msg.payload)
     print("PID Kd value: " + str(pid.Kd))
+    client.publish("mqtt_co2_pid/kd", str(pid.Kd), qos=0, retain=False)
   if msg.topic == "mqtt_co2_pid/target_value/set":
     pid.setpoint = float(msg.payload)
     print("PID setpoint value: " + str(pid.setpoint))
+    client.publish("mqtt_co2_pid/target_value", str(pid.setpoint), qos=0, retain=False)
   if msg.topic == "mqtt_co2_pid/power":
     if msg.payload == "true":
       pid.auto_mode = True
@@ -69,7 +74,7 @@ def on_message(client, userdata, msg):
 
 
 def main():
-  global period, pid
+  global period, pid, client
 
   pid = PID(-0.30, -0.0, -0.0, setpoint=600)
   pid.sample_time = 60*2
