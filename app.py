@@ -21,6 +21,7 @@ import random
 sensor_co2 = 0
 period = 30
 ahu_value = 0
+min_power = 20
 
 def on_connect(client, userdata, flags, rc):
   print("Connected with result code " + str(rc))
@@ -30,6 +31,7 @@ def on_connect(client, userdata, flags, rc):
   client.subscribe("mqtt_co2_pid/kd/set")
   client.subscribe("mqtt_co2_pid/target_value/set")
   client.subscribe("mqtt_co2_pid/power")
+  client.subscribe("mqtt_co2_pid/min_power")
   client.publish("mqtt_co2_pid/status", payload="daemon started", qos=0, retain=False)
   client.publish("ahu/power/set", 10, qos=0, retain=False)
 
@@ -64,6 +66,11 @@ def on_message(client, userdata, msg):
     pid.setpoint = float(msg.payload)
     print("PID setpoint value: " + str(pid.setpoint))
     client.publish("mqtt_co2_pid/target_value", str(pid.setpoint), qos=0, retain=False)
+  if msg.topic == "mqtt_co2_pid/min_power/set":
+    min_power = float(msg.payload)
+    print("PID min power: " + str(min_power))
+    client.publish("mqtt_co2_pid/min_power", str(min_power), qos=0, retain=False)
+    pid.output_limits = (min_power, 100)
   if msg.topic == "mqtt_co2_pid/power":
     if msg.payload == "true":
       pid.auto_mode = True
@@ -105,6 +112,7 @@ def main():
     client.publish("mqtt_co2_pid/ki", str(pid.Ki), qos=0, retain=False)
     client.publish("mqtt_co2_pid/kd", str(pid.Kd), qos=0, retain=False)
     client.publish("mqtt_co2_pid/target_value", str(pid.setpoint), qos=0, retain=False)
+    client.publish("mqtt_co2_pid/min_power", str(pid.setpoint), qos=0, retain=False)
 
   client.loop_stop()
 
