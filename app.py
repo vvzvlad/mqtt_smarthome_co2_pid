@@ -39,7 +39,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
   #print("Received MQTT message:" + msg.topic + ": " + str(msg.payload))
-  global sensor_co2, pid, ahu_value
+  global sensor_co2, pid, ahu_value, min_power
 
   if msg.topic == "zigbee/sensor_CO2_a0d8":
     json_data = json.loads(msg.payload)
@@ -85,7 +85,7 @@ def main():
 
   pid = PID(-0.30, -0.0, -0.0, setpoint=600)
   pid.sample_time = 60*2
-  pid.output_limits = (10, 100)
+  pid.output_limits = (min_power, 100)
 
   counter = 0
 
