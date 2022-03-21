@@ -105,7 +105,7 @@ def main():
     time.sleep(period)
     uptime = counter * period
 
-    print("\n\nPublish uptime: " + str(uptime) + "s. ki:" + str(pid.Ki) + ", kp:" + str(pid.Kp) + ", kd:" + str(pid.Kd) + ", setpoint:" + str(pid.setpoint) + ", power:" + str(pid.auto_mode) + ", value:" + str(ahu_value), ", min_power:" + str(pid.min_power))
+    print("\n\nPublish uptime: " + str(uptime) + "s. ki:" + str(pid.Ki) + ", kp:" + str(pid.Kp) + ", kd:" + str(pid.Kd) + ", setpoint:" + str(pid.setpoint) + ", power:" + str(pid.auto_mode) + ", value:" + str(ahu_value), ", min_power:" + str(min_power))
     client.publish("mqtt_co2_pid/status/uptime", str(uptime), qos=0, retain=False)
 
     client.publish("mqtt_co2_pid/kp", str(pid.Kp), qos=0, retain=False)
